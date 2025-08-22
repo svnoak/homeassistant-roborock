@@ -50,14 +50,23 @@ class RoborockDataUpdateCoordinator(
             1, lambda: asyncio.create_task(self.async_refresh())
         )
 
-    def release(self) -> None:
+    async def async_release(self) -> None:
         """Disconnect from API."""
         if self.scheduled_refresh:
             self.scheduled_refresh.cancel()
-        self.api.sync_disconnect()
+        # Disconnect main api
+        if hasattr(self.api, 'async_disconnect'):
+            await self.api.async_disconnect()
+        elif hasattr(self.api, 'sync_disconnect'):
+            await self.hass.async_add_executor_job(self.api.sync_disconnect)
+
+        # Disconnect map api if different
         if self.api != self.map_api:
             try:
-                self.map_api.sync_disconnect()
+                if hasattr(self.map_api, 'async_disconnect'):
+                    await self.map_api.async_disconnect()
+                elif hasattr(self.map_api, 'sync_disconnect'):
+                    await self.hass.async_add_executor_job(self.map_api.sync_disconnect)
             except RoborockException:
                 _LOGGER.warning("Failed to disconnect from map api")
 
